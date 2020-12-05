@@ -1,0 +1,86 @@
+// 1. Declararea datelor initiale si a bibliotecilor folosite in program
+
+#include <dht.h>
+DHT dht(DHT_pin);
+dht DHT;
+#define DHT10_PIN 10
+#define LEDpin 9
+
+#include <LiquidCrystal.h>
+LiquidCrystal lcd(12,11,5,4,3,2);
+
+volatile bool 1_sec = false;// valoare booleana pentru o secunda
+volatile bool 2_sec = false;// valoare booleana pentru doua secunde
+
+double temp = 36.6;
+double moving_sp = temperatura_camerei;
+
+
+double kp = 1;
+double ki=0.1;
+double kd=0.1;
+float temp_q = 0;
+
+Menus scroll_menu = MENU_MAIN;
+Menus current_menu =  MENU_MAIN;
+
+int timp_inc = 3;
+int timp_men = 4;
+
+int volatile temp_q = 0, temp_u;
+char h[4]="10:", m[4]="00:", s[3]="00";
+
+// 2. Crearea parametriilor de intrare in circuit
+
+struct Parameteri_de_intrare
+{
+  float temp = 36.6;
+  float kp = 1;
+  float ki=0.1;
+  float kd=0.1;
+  int tIncal = 10;
+  int tMen = 10;
+  int tRac = 5;
+};
+
+// 3. Citirea pinilor
+void initializare()
+{
+  pinMode(2, INPUT_PULLUP);
+  pinMode(3, INPUT_PULLUP);
+  pinMode(4, INPUT_PULLUP);
+  pinMode(5, INPUT_PULLUP);
+  pinMode(11, INPUT_PULLUP);
+  pinMode(12, INPUT_PULLUP);
+  pinMode(BEC_pin, OUTPUT);
+}
+
+void citire_pini()
+{
+  LCD.init();
+  Serial.begin(9600);
+  pinMode(12, INPUT_PULLUP);
+  digitalWrite(12, LOW); 
+  pinMode(11, INPUT_PULLUP);
+  digitalWrite(11, LOW); 
+  pinMode(5, INPUT_PULLUP);
+  digitalWrite(5, LOW);
+  pinMode(4, INPUT_PULLUP);
+  digitalWrite(4, LOW); 
+  pinMode(3, INPUT_PULLUP);
+  digitalWrite(3, LOW); 
+  pinMode(2, INPUT_PULLUP);
+  digitalWrite(2, LOW); 
+}
+
+// 4. Configurarea regsitriilor 
+
+void ADC_Init()
+{
+	ADCSRA |= 1 << ADEN;
+  	ADMUX |= 1 << REFS0;
+	ADCSRA |= 1 << ADIE;
+  	ADCSRA |= 1 << ADSC;
+
+}
+
