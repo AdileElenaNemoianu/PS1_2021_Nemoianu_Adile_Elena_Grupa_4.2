@@ -1,0 +1,101 @@
+// 11. Implementare PID - PT1
+
+void PID(void)
+{
+  eroare = set - temp;
+    suma_erori= suma_erori + eroare * dt;
+    derivativa = (eroare - eroare_anterioara) / dt;
+    output = (kp * eroare) + (ki * suma_erori ) + (kd * derivativa);
+    if(output>254){  output=254;}
+    else if(output<0){output=0;}
+    Serial.println(output);
+    analogWrite(LEDpin, output);
+    delay(10);
+    eroare_anterioara = eroare;
+}
+
+void PID_si_PT1_implementare(){volatile Lista_de_evenimente_butoane eveniment = Introducere_semnal();
+    if (eveniment != EV_NONE)
+    {
+      termostat(current_menu, eveniment);
+    }
+    print_menu(scroll_menu);
+   
+    u[2] = temp - y[1];
+    x[1] = c1*u[0]+c2*u[1]+c3*u[2]+d*x[0];
+    y[1] = a1*x[1]+a2*x[0]+b*y[0]; 
+    y[0] = y[1];
+    x[0] = x[1];    
+    u[0] = u[1];
+    u[1] = u[2]; }
+
+// 12. Crearea functiilor ajutatoare pe care le-am folosit pana acum in program
+
+void setari() 
+{
+  LCD.init();
+  Initializare(); 
+  EEPROM.get(0, Parameteri_de_intrare);
+  EEPROM.put(0,Parameteri_de_intrare);
+  Serial.begin(9600);
+}
+
+void asteptati(void)
+{
+  LCD.setCursor(0, 1);
+  LCD.print("Va rog, asteptati...");
+}
+
+bool ok()
+{
+  return 1;
+}
+
+void mergi_acasa(void)
+{
+  scroll_menu = MENU_MAIN;
+  current_menu = scroll_menu;
+  change = 0;
+}
+
+void incepere_meniu(void)
+{
+  current_menu = scroll_menu;
+}
+
+void mergi_la_urmatorul(void)
+{
+  scroll_menu = (Menus) ((int)scroll_menu + 1);
+  scroll_menu = (Menus) ((int)scroll_menu % MENU_MAX_NUM);
+}
+
+void mergi_la_anterior(void)
+{
+  scroll_menu = (Menus) ((int)scroll_menu - 1);
+  scroll_menu = (Menus) ((int)scroll_menu % MENU_MAX_NUM);
+}
+
+void salveaza(void)
+{
+  EEPROM.put(0, Parameteri_de_intrare);
+  mergi_acasa();
+}
+
+// 13. Crearea meniului principal 
+
+int main()
+{
+  Serial.begin(9600);
+  lcd.begin(16, 2);
+  lcd.clear();
+  sei();
+  OCR1A = 15625;
+  TCCR1B |= (1 << CS12) | (1 << WGM12) | (1 << CS10);
+  TIMSK1 |= 1 << OCIE1A;
+  ADC_Init();
+  while(1)
+  {
+  }
+}
+
+// 14. Sfarsitul programului
