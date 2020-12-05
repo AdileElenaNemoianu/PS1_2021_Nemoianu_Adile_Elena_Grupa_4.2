@@ -1,0 +1,184 @@
+// 9. Crearea butoanelor si configurarea lor 
+
+// definirea butoanelor
+
+#define BUTTON_OK 4
+#define BUTTON_CANCEL 5
+#define BUTTON_PREV 6
+#define BUTTON_NEXT 7
+#define BUTTON_TEMP 8
+
+int sum_error = 0;
+int uptime=0;
+
+enum Lista_de_evenimente_butoane {
+  EV_OK,
+  EV_CANCEL,
+  EV_PREV,
+  EV_NONE
+  EV_NEXT,
+  EV_MAX_NUM
+};
+
+
+Lista_de_evenimente_butoane Introducere_semnal(void)
+{
+  enum Lista_de_evenimente_butoane ret_val = EV_NONE;
+  if (REG_PORT_IN0 & BUTTON_OK)
+  {
+    ret_val = EV_OK;
+  }
+  else if (REG_PORT_IN0 & BUTTON_CANCEL)
+  {
+    ret_val = EV_CANCEL;
+  }
+  else if (REG_PORT_IN0 & BUTTON_NEXT)
+  {
+    ret_val = EV_NEXT;
+  }
+  else if (REG_PORT_IN0 & BUTTON_PREV)
+  {
+    ret_val = EV_PREV;
+  }
+  Serial.print(ret_val);
+  return ret_val;
+}
+
+void eveniment_buton()
+{
+  volatile Lista_de_evenimente_butoane eveniment = Introducere_semnal();
+  if (eveniment != EV_NONE)
+  {
+    termostat(current_menu, eveniment);
+  }
+    print_menu(scroll_menu);
+    delay(1000);
+}
+
+// 10. Crearea meniului si configurarea acestuia
+
+enum Elemente_din_meniu {
+  MENU_MAIN = 0,
+  MENU_KP,
+  MENU_KI,
+  MENU_KD,
+  MENU_TEMP,
+  MENU_TIMP_INC,
+  MENU_MAX_NUM
+};
+
+
+meniu_termostat_1* sm[Elemente_din_meniu_MAX_NUM][EV_MAX_NUM] 
+{ 
+  {asteptati, mergi_acasa, asteptati, ok},                   // MENU_START
+  {salveaza, cancel_KP, inc_kp, dec_kp},              // MENU_KP
+  {salveaza, cancel_KI, inc_ki, dec_ki},              // MENU_Ki
+  {salveaza, cancel_KD, inc_kd, dec_kd},              // MENU_Kd
+  {salveaza, cancel_Temp, inc_temp, dec_temp},        // MENU_TEMP
+  {salveaza, cancel_tIncal, inc_tIncal, dec_tIncal},  // MENU_TINCAL
+  {salveaza, cancel_tMen, inc_tMen, dec_tMen},        // MENU_TMEN
+  {salveaza, cancel_tRac, inc_tRac, dec_tRac}         // MENU_TRAC
+};
+
+meniu_termostat_2* sm[Elemente_din_meniu_MAX_NUM][EV_MAX_NUM] 
+  {mergi_acasa, mergi_acasa, inc_kp, dec_kp},       // MENU_KP
+  {mergi_acasa, mergi_acasa,inc_ki,dec_ki},       // MENU_Ki
+  {mergi_acasa, mergi_acasa,inc_kd,dec_kd},       // MENU_Kd
+  {mergi_acasa, mergi_acasa, inc_temp, dec_temp},   // MENU_TEMP
+};
+
+void termostat (enum Elemente_din_meniu meniu, enum Lista_de_evenimente_butoane buton)
+{
+  sm[meniu][buton]();
+}
+
+void afisare_meniu(enum Elemente_din_meniu meniu)
+{
+  LCD.clear();
+  switch(meniu)
+  {
+    case MENU_KP:
+      LCD.print("KP = ");
+      LCD.print(kp);
+      break;
+    case MENU_KI:
+      LCD.print("KI = ");
+      LCD.print(ki);
+      break;
+    case MENU_KD:
+      LCD.print("Kd = ");
+      LCD.print(kd);
+      break;
+    case MENU_TEMP:
+      LCD.print("TEMP = ");
+      LCD.print(temp);
+      break;
+    case MENU_MAIN:
+    default:
+      LCD.print("Proiect PS1 Nemoianu GR 4.2 ");
+      break;
+  }
+
+  if(current_menu != MENU_MAIN)
+  {
+      LCD.setCursor(0,1);
+    LCD.print("Schimba");
+  }
+}
+
+void save_kp(void)
+{
+}
+
+void save_ki(void)
+{
+}
+
+
+void save_kd(void)
+{
+}
+
+void inc_kp(void)
+{
+  kp++;
+}
+
+void inc_ki(void)
+{
+  ki++;
+}
+
+void inc_kd(void)
+{
+  kd++;
+}
+
+void dec_kp(void)
+{
+  kp--;
+}
+
+void dec_ki(void)
+{
+  ki--;
+}
+
+void dec_kd(void)
+{
+  kd--;
+}
+
+void save_temp(void)
+{
+}
+
+void inc_temp(void)
+{
+  temp++;
+}
+
+void dec_temp(void)
+{
+  temp--;
+}
