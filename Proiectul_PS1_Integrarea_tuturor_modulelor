@@ -1,0 +1,572 @@
+// 1. Declararea datelor initiale si a bibliotecilor folosite in program
+
+#include <dht.h>
+DHT dht(DHT_pin);
+dht DHT;
+#define DHT10_PIN 10
+#define LEDpin 9
+
+#include <LiquidCrystal.h>
+LiquidCrystal lcd(12,11,5,4,3,2);
+
+volatile bool 1_sec = false;// valoare booleana pentru o secunda
+volatile bool 2_sec = false;// valoare booleana pentru doua secunde
+
+double temp = 36.6;
+double moving_sp = temperatura_camerei;
+
+
+double kp = 1;
+double ki=0.1;
+double kd=0.1;
+float temp_q = 0;
+
+Menus scroll_menu = MENU_MAIN;
+Menus current_menu =  MENU_MAIN;
+
+int timp_inc = 3;
+int timp_men = 4;
+
+int volatile temp_q = 0, temp_u;
+char h[4]="10:", m[4]="00:", s[3]="00";
+
+// 2. Crearea parametriilor de intrare in circuit
+
+struct Parameteri_de_intrare
+{
+  float temp = 36.6;
+  float kp = 1;
+  float ki=0.1;
+  float kd=0.1;
+  int tIncal = 10;
+  int tMen = 10;
+  int tRac = 5;
+};
+
+// 3. Citirea pinilor
+void initializare()
+{
+  pinMode(2, INPUT_PULLUP);
+  pinMode(3, INPUT_PULLUP);
+  pinMode(4, INPUT_PULLUP);
+  pinMode(5, INPUT_PULLUP);
+  pinMode(11, INPUT_PULLUP);
+  pinMode(12, INPUT_PULLUP);
+  pinMode(BEC_pin, OUTPUT);
+}
+
+void citire_pini()
+{
+  LCD.init();
+  Serial.begin(9600);
+  pinMode(12, INPUT_PULLUP);
+  digitalWrite(12, LOW); 
+  pinMode(11, INPUT_PULLUP);
+  digitalWrite(11, LOW); 
+  pinMode(5, INPUT_PULLUP);
+  digitalWrite(5, LOW);
+  pinMode(4, INPUT_PULLUP);
+  digitalWrite(4, LOW); 
+  pinMode(3, INPUT_PULLUP);
+  digitalWrite(3, LOW); 
+  pinMode(2, INPUT_PULLUP);
+  digitalWrite(2, LOW); 
+}
+
+// 4. Configurarea regsitriilor 
+
+void ADC_Init()
+{
+	ADCSRA |= 1 << ADEN;
+  	ADMUX |= 1 << REFS0;
+	ADCSRA |= 1 << ADIE;
+  	ADCSRA |= 1 << ADSC;
+
+}
+
+// 5. Cofigurarea temperaturii
+
+ISR(ADC_vect)
+{
+  temp_q = ADC;
+  float q = 5000.0/1023;
+  temp_u = temp_q*q;
+  temp_u = temp_u/10-50;
+  ADCSRA |= 1 << ADSC;
+}
+
+// 6. Afisarea orei 
+
+ISR(TIMER1_COMPA_vect)
+{
+  char buf[18] = "Temperatura ", aux[4];
+  itoa(temp_u, aux, 10);
+  strcat(buf, aux);
+  strcat(buf, "'C");
+  lcd.setCursor(0, 0);
+  lcd.print(buf);
+  strcpy(buf, "Ora ");
+  strcat(buf, h);
+  strcat(buf, m);
+  strcat(buf, s);
+  lcd.setCursor(0, 1);
+  lcd.print(buf);
+  if(s[1] == '9')
+  {
+    if(s[0] == '5')
+    {
+      if(m[1] == '9')
+      {
+        if(m[0] == '5')
+        {
+          if(h[1] == '3' && h[0] == '2')
+          {
+            strcpy(h, "00:");
+          }
+          else if(h[1] == '9')
+          {
+            h[0]++;
+            h[1] = '0';
+          }
+          else
+          {
+            h[1]++;
+          }
+          m[0] = '0';
+          m[1] = '0';
+          s[0] = '0';
+          s[1] = '0';
+        }
+        else
+        {
+          m[0]++;
+          m[1] = '0';
+        }
+      }
+      else
+      {
+       m[1]++;
+      }
+      s[0] = '0';
+      s[1] = '0';
+    }
+    else
+    {
+      s[0]++;
+      s[1] = '0';
+    }
+  }
+  else
+  {
+    s[1]++;
+  }
+}
+
+// 7. Afisarea temperaturii
+
+void loop() {
+  if (one_second)
+  {
+    if (two_second)
+    {
+      dht.start();
+      temperatura = dht.temp();
+      LCD.clear();
+      two_second = false;
+    }
+
+    LCD.setCursor(0, 0);
+    LCD.print("ORA ");
+    LCD.setCursor(4, 0);
+    LCD.print(h);
+    LCD.setCursor(7, 0);
+    LCD.print(m);
+    LCD.setCursor(10, 0);
+    LCD.print(s);
+    LCD.setCursor(0, 1);
+    LCD.print("Temp= ");
+    if (temperatura > 0)
+    {
+      LCD.setCursor(7, 1);
+      LCD.print(temperatura);
+      LCD.print(" C");
+    }
+    else
+    {
+      LCD.setCursor(0, 1);
+      LCD.print("Eroare de citire de la senzor");
+    }
+    one_second = false;
+  }
+
+}
+
+// 8. Citirea temperaturii, mentinerea temperaturii si racirea acesteia
+
+double Setpoint, Input, Output;
+int inputPin=10, outputPin=0;
+double output=512;
+  int a;
+  double eroare= 0;
+  double suma_erori= 0;
+  double eroare_anterioara = 0;
+  double derivativa = 0;
+  double dt=0.01; // timp de esantionare egal cu 0.01 secunde
+  double set = 40;
+  double temp=0;
+
+void citire()
+{
+  Serial.begin(9600);
+  lcd.begin(16,2);
+  Input = digitalRead(inputPin);
+}
+void citire_de_la_senzor()
+{
+  int chk = DHT.read(DHT_PIN);
+  temp=DHT.temperature;
+  PID();
+  Meniu(temp);
+  delay(2000);
+}
+void Meniu_temperatura(float temp)
+{
+  lcd.clear();
+  lcd.setCursor(0,0);
+  lcd.print("Kp  Ki   Kd  Tp");
+  lcd.setCursor(0,1);
+  lcd.print(int (kp));
+  lcd.setCursor(4,1);
+  lcd.print(ki);
+  lcd.setCursor(9,1);
+  lcd.print(int (kd));
+  lcd.setCursor(13,1);
+  lcd.print(int (temp));
+  
+  Serial.println(" Meniul pentru reglarea temperaturii ");
+ 
+ Serial.print("| KP: ");
+ Serial.print(kp);
+ Serial.print(" | KI: ");
+ Serial.print(ki);
+ Serial.print(" | KD: ");
+ Serial.print(kd);
+ Serial.print(" | TEMP: ");
+ Serial.print(tp);
+ Serial.print(" |");
+ Serial.println(" ");
+ Serial.println("1) KP+1 ");
+ Serial.println("2) KP-1 ");
+ Serial.println("11) KP+10 ");
+ Serial.println("22) KP-10 ");
+ Serial.println("3)  KI+0.1 ");
+ Serial.println("4)  KI-0.1 ");
+ Serial.println("5)  SET+10 ");
+ Serial.println("6)  SET-10 ");
+ Serial.println("7)  KD+0.1 ");
+ Serial.println("8)  KD-0.1 ");
+ Serial.println(" Sfarsitul meniului ");
+  
+if(Serial.available())
+{
+a=Serial.read()-48;
+}
+ switch(a)
+{ case 0: kp=kp+1; break;
+case 1: kp=kp-1; break;
+case 2: kp=kp+10; break;
+case 3: kp=kp-10; break; 
+case 4: ki=ki+0.1; break;
+case 5: ki=ki-0.1; break; 
+case 6: set=set+10; break; 
+case 7: set=set-10; break; 
+case 8: kd=kd+0.1; break; 
+case 9:kd=kd-0.1; break;
+}
+}
+
+// 9. Crearea butoanelor si configurarea lor 
+
+// definirea butoanelor
+
+#define BUTTON_OK 4
+#define BUTTON_CANCEL 5
+#define BUTTON_PREV 6
+#define BUTTON_NEXT 7
+#define BUTTON_TEMP 8
+
+int sum_error = 0;
+int uptime=0;
+
+enum Lista_de_evenimente_butoane {
+  EV_OK,
+  EV_CANCEL,
+  EV_PREV,
+  EV_NONE
+  EV_NEXT,
+  EV_MAX_NUM
+};
+
+Lista_de_evenimente_butoane Introducere_semnal(void)
+{
+  enum Lista_de_evenimente_butoane ret_val = EV_NONE;
+  if (REG_PORT_IN0 & BUTTON_OK)
+  {
+    ret_val = EV_OK;
+  }
+  else if (REG_PORT_IN0 & BUTTON_CANCEL)
+  {
+    ret_val = EV_CANCEL;
+  }
+  else if (REG_PORT_IN0 & BUTTON_NEXT)
+  {
+    ret_val = EV_NEXT;
+  }
+  else if (REG_PORT_IN0 & BUTTON_PREV)
+  {
+    ret_val = EV_PREV;
+  }
+  Serial.print(ret_val);
+  return ret_val;
+}
+
+void eveniment_buton()
+{
+  volatile Lista_de_evenimente_butoane eveniment = Introducere_semnal();
+  if (eveniment != EV_NONE)
+  {
+    termostat(current_menu, eveniment);
+  }
+    print_menu(scroll_menu);
+    delay(1000);
+}
+
+// 10. Crearea meniului si configurarea acestuia
+
+enum Elemente_din_meniu {
+  MENU_MAIN = 0,
+  MENU_KP,
+  MENU_KI,
+  MENU_KD,
+  MENU_TEMP,
+  MENU_TIMP_INC,
+  MENU_MAX_NUM
+};
+
+meniu_termostat_1* sm[Elemente_din_meniu_MAX_NUM][EV_MAX_NUM] 
+{ 
+  {asteptati, mergi_acasa, asteptati, ok},                   // MENU_START
+  {salveaza, cancel_KP, inc_kp, dec_kp},              // MENU_KP
+  {salveaza, cancel_KI, inc_ki, dec_ki},              // MENU_Ki
+  {salveaza, cancel_KD, inc_kd, dec_kd},              // MENU_Kd
+  {salveaza, cancel_Temp, inc_temp, dec_temp},        // MENU_TEMP
+  {salveaza, cancel_tIncal, inc_tIncal, dec_tIncal},  // MENU_TINCAL
+  {salveaza, cancel_tMen, inc_tMen, dec_tMen},        // MENU_TMEN
+  {salveaza, cancel_tRac, inc_tRac, dec_tRac}         // MENU_TRAC
+};
+
+meniu_termostat_2* sm[Elemente_din_meniu_MAX_NUM][EV_MAX_NUM] 
+  {mergi_acasa, mergi_acasa, inc_kp, dec_kp},       // MENU_KP
+  {mergi_acasa, mergi_acasa,inc_ki,dec_ki},       // MENU_Ki
+  {mergi_acasa, mergi_acasa,inc_kd,dec_kd},       // MENU_Kd
+  {mergi_acasa, mergi_acasa, inc_temp, dec_temp},   // MENU_TEMP
+};
+
+void termostat (enum Elemente_din_meniu meniu, enum Lista_de_evenimente_butoane buton)
+{
+  sm[meniu][buton]();
+}
+
+void afisare_meniu(enum Elemente_din_meniu meniu)
+{
+  LCD.clear();
+  switch(meniu)
+  {
+    case MENU_KP:
+      LCD.print("KP = ");
+      LCD.print(kp);
+      break;
+    case MENU_KI:
+      LCD.print("KI = ");
+      LCD.print(ki);
+      break;
+    case MENU_KD:
+      LCD.print("Kd = ");
+      LCD.print(kd);
+      break;
+    case MENU_TEMP:
+      LCD.print("TEMP = ");
+      LCD.print(temp);
+      break;
+    case MENU_MAIN:
+    default:
+      LCD.print("Proiect PS1 Nemoianu GR 4.2 ");
+      break;
+  }
+
+  if(current_menu != MENU_MAIN)
+  {
+      LCD.setCursor(0,1);
+    LCD.print("Schimba");
+  }
+}
+
+void save_kp(void)
+{
+}
+
+void save_ki(void)
+{
+}
+
+
+void save_kd(void)
+{
+}
+
+void inc_kp(void)
+{
+  kp++;
+}
+
+void inc_ki(void)
+{
+  ki++;
+}
+
+void inc_kd(void)
+{
+  kd++;
+}
+
+void dec_kp(void)
+{
+  kp--;
+}
+
+void dec_ki(void)
+{
+  ki--;
+}
+
+void dec_kd(void)
+{
+  kd--;
+}
+
+void save_temp(void)
+{
+}
+
+void inc_temp(void)
+{
+  temp++;
+}
+
+void dec_temp(void)
+{
+  temp--;
+}
+
+// 11. Implementare PID - PT1
+
+void PID(void)
+{
+  eroare = set - temp;
+    suma_erori= suma_erori + eroare * dt;
+    derivativa = (eroare - eroare_anterioara) / dt;
+    output = (kp * eroare) + (ki * suma_erori ) + (kd * derivativa);
+    if(output>254){  output=254;}
+    else if(output<0){output=0;}
+    Serial.println(output);
+    analogWrite(LEDpin, output);
+    delay(10);
+    eroare_anterioara = eroare;
+}
+
+void PID_si_PT1_implementare(){volatile Lista_de_evenimente_butoane eveniment = Introducere_semnal();
+    if (eveniment != EV_NONE)
+    {
+      termostat(current_menu, eveniment);
+    }
+    print_menu(scroll_menu);
+   
+    u[2] = temp - y[1];
+    x[1] = c1*u[0]+c2*u[1]+c3*u[2]+d*x[0];
+    y[1] = a1*x[1]+a2*x[0]+b*y[0]; 
+    y[0] = y[1];
+    x[0] = x[1];
+    
+    u[0] = u[1];
+    u[1] = u[2]; }
+
+// 12. Crearea functiilor ajutatoare pe care le-am folosit pana acum in program
+
+void setari() 
+{
+  LCD.init();
+  Initializare(); 
+  EEPROM.get(0, Parameteri_de_intrare);
+  EEPROM.put(0,Parameteri_de_intrare);
+  Serial.begin(9600);
+}
+
+void asteptati(void)
+{
+  LCD.setCursor(0, 1);
+  LCD.print("Va rog, asteptati...");
+}
+
+bool ok()
+{
+  return 1;
+}
+
+void mergi_acasa(void)
+{
+  scroll_menu = MENU_MAIN;
+  current_menu = scroll_menu;
+  change = 0;
+}
+
+void incepere_meniu(void)
+{
+  current_menu = scroll_menu;
+}
+
+void mergi_la_urmatorul(void)
+{
+  scroll_menu = (Menus) ((int)scroll_menu + 1);
+  scroll_menu = (Menus) ((int)scroll_menu % MENU_MAX_NUM);
+}
+
+void mergi_la_anterior(void)
+{
+  scroll_menu = (Menus) ((int)scroll_menu - 1);
+  scroll_menu = (Menus) ((int)scroll_menu % MENU_MAX_NUM);
+}
+
+void salveaza(void)
+{
+  EEPROM.put(0, Parameteri_de_intrare);
+  mergi_acasa();
+}
+
+// 13. Crearea meniului principal 
+
+int main()
+{
+  Serial.begin(9600);
+  lcd.begin(16, 2);
+  lcd.clear();
+  sei();
+  OCR1A = 15625;
+  TCCR1B |= (1 << CS12) | (1 << WGM12) | (1 << CS10);
+  TIMSK1 |= 1 << OCIE1A;
+  ADC_Init();
+  while(1)
+  {
+  }
+}
+
+// 14. Sfarsitul programului
